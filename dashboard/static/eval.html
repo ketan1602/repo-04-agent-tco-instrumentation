@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eval — Agent TCO Instrumentation</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<nav class="nav">
+  <a class="nav-brand" href="/">Agent TCO</a>
+  <div class="nav-links">
+    <a href="/">Overview</a>
+    <a href="/demo">Demo</a>
+    <a href="/metrics">Metrics</a>
+    <a href="/eval">Eval</a>
+  </div>
+</nav>
+<main class="container">
+  <div class="page-header">
+    <h1>Eval Suite</h1>
+    <p class="text-muted">20 contract fixtures covering all risk levels. Pass threshold: 80%.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Fixture Summary</div>
+    <div id="summary-area" class="loading">Loading…</div>
+  </div>
+
+  <div class="card">
+    <h3>Run Eval</h3>
+    <p class="text-muted" style="margin-bottom:12px">
+      Eval runs via pytest and requires <code>AIREFINERY_API_KEY</code> to be set.
+    </p>
+    <code style="display:block; background:var(--bg); padding:12px; border-radius:6px; border:1px solid var(--border)">
+      pytest tests/ -v
+    </code>
+  </div>
+
+  <div class="card">
+    <h3>Contract Fixtures (<span id="fixture-count">20</span>)</h3>
+    <table>
+      <thead><tr><th>#</th><th>Vendor</th><th>Type</th><th>Pages</th><th>Expected Risk</th></tr></thead>
+      <tbody id="fixtures-table"></tbody>
+    </table>
+  </div>
+</main>
+<script src="/static/app.js"></script>
+<script>
+  fetch('/api/eval/summary').then(r => r.json()).then(d => {
+    if (d.error) { setHtml('summary-area', `<div class="alert alert-warning">${d.error}</div>`); return; }
+    const dist = d.risk_distribution;
+    setHtml('summary-area', `
+      <div class="stat-grid">
+        <div><span class="text-muted">Fixtures</span><br><strong>${d.fixture_count}</strong></div>
+        <div><span class="text-muted">High risk</span><br><strong class="text-error">${dist.high || 0}</strong></div>
+        <div><span class="text-muted">Medium risk</span><br><strong class="text-warning">${dist.medium || 0}</strong></div>
+        <div><span class="text-muted">Low / Acceptable</span><br><strong class="text-success">${(dist.low || 0) + (dist.acceptable || 0)}</strong></div>
+      </div>`);
+  });
+
+  fetch('/api/eval/fixtures').then(r => r.json()).then(fixtures => {
+    setText('fixture-count', fixtures.length);
+    const tbody = $('fixtures-table');
+    tbody.innerHTML = fixtures.map((f, i) =>
+      `<tr><td>${i + 1}</td><td>${f.vendor_name}</td><td>${f.contract_type}</td>
+       <td>${f.page_count}</td><td>${riskBadge(f.expected_risk)}</td></tr>`
+    ).join('');
+  });
+</script>
+</body>
+</html>

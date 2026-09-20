@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Metrics — Agent TCO Instrumentation</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<nav class="nav">
+  <a class="nav-brand" href="/">Agent TCO</a>
+  <div class="nav-links">
+    <a href="/">Overview</a>
+    <a href="/demo">Demo</a>
+    <a href="/metrics">Metrics</a>
+    <a href="/eval">Eval</a>
+  </div>
+</nav>
+<main class="container">
+  <div class="page-header">
+    <h1>TCO Metrics</h1>
+    <p class="text-muted">100-run cost breakdown. Run <code>python scripts/run_tco_simulation.py</code> to populate.</p>
+  </div>
+
+  <div class="alert alert-info" id="key-finding">Loading…</div>
+
+  <div id="no-data-banner" style="display:none">
+    <div class="alert alert-warning">
+      No simulation data yet. Run: <code>python scripts/run_tco_simulation.py</code>
+    </div>
+  </div>
+
+  <div id="charts-area" style="display:none">
+    <div class="grid-2" style="margin-bottom:16px">
+      <div id="token-stat"></div>
+      <div id="review-stat"></div>
+    </div>
+    <div class="card">
+      <h3>TCO Breakdown (100 runs)</h3>
+      <div id="tco-pie" style="margin-top:8px"></div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>Per-Run Cost Trend</h3>
+      <div id="cost-trend" style="margin-top:8px"></div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>Raw Measurements</h3>
+      <table>
+        <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+        <tbody id="measurements-table"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+<script src="/static/app.js"></script>
+<script>
+  fetch('/api/metrics').then(r => r.json()).then(d => {
+    if (d.no_data) {
+      $('no-data-banner').style.display = '';
+      setText('key-finding', 'Run the simulation script to see metrics.');
+      return;
+    }
+    setText('key-finding', d.key_finding);
+    $('charts-area').style.display = '';
+    setHtml('tco-pie', d.charts.tco_pie);
+    setHtml('cost-trend', d.charts.cost_trend);
+    setHtml('token-stat', d.charts.token_stat);
+    setHtml('review-stat', d.charts.review_stat);
+
+    const tbody = $('measurements-table');
+    const display = {
+      'total_runs': 'Total Runs',
+      'token_cost_usd': 'Token Cost (USD)',
+      'review_cost_usd': 'Review Cost (USD)',
+      'eval_cost_usd': 'Eval Cost (USD)',
+      'incident_cost_usd': 'Incident Cost (USD)',
+      'retry_cost_usd': 'Retry Cost (USD)',
+      'total_cost_usd': 'Total Cost (USD)',
+      'token_cost_pct': 'Token % of TCO',
+      'avg_cost_per_run_usd': 'Avg Cost / Run (USD)',
+    };
+    tbody.innerHTML = Object.entries(display).map(([k, label]) => {
+      const v = d.data[k];
+      const fmt = typeof v === 'number' && k.endsWith('_pct') ? v.toFixed(1) + '%'
+                : typeof v === 'number' ? v.toFixed(4)
+                : v ?? '—';
+      return `<tr><td>${label}</td><td style="font-family:monospace">${fmt}</td></tr>`;
+    }).join('');
+  }).catch(err => { setText('key-finding', 'Failed to load metrics: ' + err.message); });
+</script>
+</body>
+</html>

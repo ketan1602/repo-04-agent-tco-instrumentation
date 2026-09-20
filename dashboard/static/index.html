@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Article 04 — Agent TCO Instrumentation</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<nav class="nav">
+  <a class="nav-brand" href="/">Agent TCO</a>
+  <div class="nav-links">
+    <a href="/">Overview</a>
+    <a href="/demo">Demo</a>
+    <a href="/metrics">Metrics</a>
+    <a href="/eval">Eval</a>
+  </div>
+</nav>
+<main class="container">
+  <div class="page-header">
+    <span class="badge badge-medium" style="margin-bottom:10px">Article 04</span>
+    <h1>Beyond the Model: Agent TCO Instrumentation</h1>
+    <p class="text-muted">Full cost accounting across 100 production runs — tokens are the smallest slice.</p>
+  </div>
+
+  <div class="alert alert-info" id="central-claim">
+    Token cost is a minority of true agent TCO. Human review, incident remediation, and eval infrastructure dominate.
+  </div>
+
+  <div class="alert alert-warning" id="key-finding">
+    Key Finding: Tokens represent X% of true agent TCO. Human review alone costs more than the model.
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Use Case</div>
+      <div id="use-case">Legal Contract Review — risk classification, clause flagging, reviewer routing</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Repository</div>
+      <div id="repo-name" class="text-accent" style="font-family:monospace">repo-04-agent-tco-instrumentation</div>
+    </div>
+    <div class="card">
+      <div class="card-title">TCO Categories</div>
+      <div>Token cost · Human review · Eval share · Incident cost · Retry cost</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Next Repository</div>
+      <div id="next-repo" class="text-muted" style="font-family:monospace">repo-05-agent-control-plane-mvp</div>
+    </div>
+  </div>
+
+  <div style="margin-top:24px; display:flex; gap:12px; flex-wrap:wrap">
+    <a href="/demo" class="btn btn-primary">Run Contract Demo</a>
+    <a href="/metrics" class="btn btn-secondary">View TCO Metrics</a>
+    <a href="/eval" class="btn btn-secondary">Run Eval Suite</a>
+  </div>
+</main>
+<script src="/static/app.js"></script>
+<script>
+  fetch('/api/overview').then(r => r.json()).then(d => {
+    setText('central-claim', d.central_claim);
+    setText('key-finding', 'Key Finding: ' + d.key_finding);
+    setText('use-case', d.use_case);
+    setText('repo-name', d.repo_name);
+    setText('next-repo', d.next_repo);
+  }).catch(() => {});
+</script>
+</body>
+</html>

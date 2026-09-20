@@ -1,0 +1,16 @@
+{
+  "total_runs": 0,
+  "token_cost_usd": 0,
+  "review_cost_usd": 0,
+  "eval_cost_usd": 0,
+  "incident_cost_usd": 0,
+  "retry_cost_usd": 0,
+  "total_cost_usd": 0,
+  "token_cost_pct": 0,
+  "review_cost_pct": 0,
+  "eval_cost_pct": 0,
+  "incident_cost_pct": 0,
+  "retry_cost_pct": 0,
+  "avg_cost_per_run_usd": 0,
+  "run_totals": []
+}
