@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Metrics — Agent TCO Instrumentation</title>
+  <title>Metrics - ENG-07: The Cost of an Agent Is NOT Tokens</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
 <nav class="nav">
-  <a class="nav-brand" href="/">Agent TCO</a>
+  <a class="nav-brand" href="/">ENG-07 Agent Cost</a>
   <div class="nav-links">
     <a href="/">Overview</a>
     <a href="/demo">Demo</a>
@@ -18,75 +18,68 @@
 </nav>
 <main class="container">
   <div class="page-header">
-    <h1>TCO Metrics</h1>
-    <p class="text-muted">100-run cost breakdown. Run <code>python scripts/run_tco_simulation.py</code> to populate.</p>
+    <h1>Cost per successful run</h1>
+    <p class="text-muted">Tokens are <strong>measured</strong>. Every other price is <strong>assumed</strong>. <span id="model"></span></p>
   </div>
-
-  <div class="alert alert-info" id="key-finding">Loading…</div>
-
-  <div id="no-data-banner" style="display:none">
-    <div class="alert alert-warning">
-      No simulation data yet. Run: <code>python scripts/run_tco_simulation.py</code>
-    </div>
-  </div>
-
-  <div id="charts-area" style="display:none">
-    <div class="grid-2" style="margin-bottom:16px">
-      <div id="token-stat"></div>
-      <div id="review-stat"></div>
-    </div>
-    <div class="card">
-      <h3>TCO Breakdown (100 runs)</h3>
-      <div id="tco-pie" style="margin-top:8px"></div>
-    </div>
-    <div class="card" style="margin-top:16px">
-      <h3>Per-Run Cost Trend</h3>
-      <div id="cost-trend" style="margin-top:8px"></div>
-    </div>
-    <div class="card" style="margin-top:16px">
-      <h3>Raw Measurements</h3>
-      <table>
-        <thead><tr><th>Metric</th><th>Value</th></tr></thead>
-        <tbody id="measurements-table"></tbody>
-      </table>
-    </div>
+  <div id="banner"></div>
+  <div id="content" style="display:none">
+    <div class="stat-grid" id="stats"></div>
+    <div class="alert alert-info" id="breakeven-note"></div>
+    <div class="card"><h2>Where the money goes</h2><div id="charts" class="charts"></div></div>
+    <div class="card"><h2>Remediation sweep</h2>
+      <p class="text-muted small">Cost per success as the assumed cost of one violation changes.</p><div id="sweep"></div></div>
+    <div class="card"><h2>Inputs</h2><div id="assumptions"></div></div>
+    <div class="card"><h2>Limits</h2><ul id="limits"></ul></div>
   </div>
 </main>
 <script src="/static/app.js"></script>
 <script>
-  fetch('/api/metrics').then(r => r.json()).then(d => {
-    if (d.no_data) {
-      $('no-data-banner').style.display = '';
-      setText('key-finding', 'Run the simulation script to see metrics.');
-      return;
-    }
-    setText('key-finding', d.key_finding);
-    $('charts-area').style.display = '';
-    setHtml('tco-pie', d.charts.tco_pie);
-    setHtml('cost-trend', d.charts.cost_trend);
-    setHtml('token-stat', d.charts.token_stat);
-    setHtml('review-stat', d.charts.review_stat);
-
-    const tbody = $('measurements-table');
-    const display = {
-      'total_runs': 'Total Runs',
-      'token_cost_usd': 'Token Cost (USD)',
-      'review_cost_usd': 'Review Cost (USD)',
-      'eval_cost_usd': 'Eval Cost (USD)',
-      'incident_cost_usd': 'Incident Cost (USD)',
-      'retry_cost_usd': 'Retry Cost (USD)',
-      'total_cost_usd': 'Total Cost (USD)',
-      'token_cost_pct': 'Token % of TCO',
-      'avg_cost_per_run_usd': 'Avg Cost / Run (USD)',
-    };
-    tbody.innerHTML = Object.entries(display).map(([k, label]) => {
-      const v = d.data[k];
-      const fmt = typeof v === 'number' && k.endsWith('_pct') ? v.toFixed(1) + '%'
-                : typeof v === 'number' ? v.toFixed(4)
-                : v ?? '—';
-      return `<tr><td>${label}</td><td style="font-family:monospace">${fmt}</td></tr>`;
-    }).join('');
-  }).catch(err => { setText('key-finding', 'Failed to load metrics: ' + err.message); });
+const ROW = (k, v, kind) => `<tr><td>${k}</td><td class="num">${v}</td><td><span class="tag tag-${kind}">${kind}</span></td></tr>`;
+function breakevenText(v) {
+  if (v === null || v === undefined) return 'Breakeven remediation: never. The harness is not cheaper at any remediation price.';
+  if (v === 0) return 'Breakeven remediation: $0. The harness is cheaper per success even if a violation cost nothing to remediate.';
+  return `Breakeven remediation: ${usd(v)} per violation. Above that, the harness is cheaper per success; below it, the direct path is.`;
+}
+function render(d) {
+  setText('model', 'Model: ' + d.model);
+  const a = d.assumptions, p = a.platform, dr = d.direct, h = d.harnessed;
+  setHtml('stats',
+    statCard(usd(dr.cost_per_success_usd), 'Cost per success, direct', `${dr.successes}/${dr.runs} succeeded`, 'text-error') +
+    statCard(usd(h.cost_per_success_usd), 'Cost per success, harnessed', `${h.successes}/${h.runs} succeeded`, 'text-success') +
+    statCard(dr.violations, 'Violations, direct', `of ${dr.runs} runs`, 'text-error') +
+    statCard(h.violations, 'Violations, harnessed', `${h.vetoed} vetoed, ${h.escalated} escalated, ${h.retried} retried`, 'text-success') +
+    statCard(usd(d.breakeven_remediation_usd, 'never'), 'Breakeven remediation', 'per violation', 'text-accent'));
+  setText('breakeven-note', breakevenText(d.breakeven_remediation_usd));
+  setHtml('charts', d.charts.direct + d.charts.harnessed);
+  setHtml('sweep', `<table><thead><tr><th>Remediation per violation</th><th>Direct, per success</th><th>Harnessed, per success</th></tr></thead><tbody>${
+    d.remediation_sweep.map(s => `<tr><td class="num">${usd(s.remediation_per_violation_usd)}</td>
+      <td class="num">${usd(s.direct_cost_per_success_usd)}</td><td class="num">${usd(s.harnessed_cost_per_success_usd)}</td></tr>`).join('')
+  }</tbody></table>`);
+  setHtml('assumptions', `<table><thead><tr><th>Input</th><th>Value</th><th>Source</th></tr></thead><tbody>
+    ${ROW('Tokens, direct', dr.tokens, 'measured')}
+    ${ROW('Tokens, harnessed', h.tokens, 'measured')}
+    ${ROW('Runs per path', d.runs_per_arm, 'measured')}
+    ${ROW('Token price per 1k', usd(a.token_price_per_1k), 'assumed')}
+    ${ROW('Runtime per run', usd(p.runtime_per_run), 'assumed')}
+    ${ROW('Observability per run (harness only)', usd(p.observability_per_run), 'assumed')}
+    ${ROW('Control per run (harness only)', usd(p.control_per_run), 'assumed')}
+    ${ROW('Approval time (minutes)', a.approval_minutes, 'assumed')}
+    ${ROW('Reviewer rate per hour', usd(a.reviewer_rate_per_hour), 'assumed')}
+    ${ROW('Approval cost', usd(a.approval_cost_usd), 'assumed')}
+    ${ROW('Remediation per violation', usd(a.remediation_per_violation), 'assumed')}
+    ${ROW('Cost center', esc(a.cost_center), 'assumed')}
+  </tbody></table>`);
+  setHtml('limits', d.limits.map(l => `<li>${esc(l)}</li>`).join(''));
+  $('content').style.display = '';
+}
+fetch('/api/metrics').then(r => r.json()).then(d => {
+  if (d.no_data) {
+    setHtml('banner', `<div class="alert alert-warning">No cost results yet. Run:<br>${
+      d.seed_commands.map(c => `<code>${esc(c)}</code>`).join('<br>')}</div>`);
+    return;
+  }
+  render(d);
+}).catch(() => setHtml('banner', '<div class="alert alert-error">Could not load /api/metrics.</div>'));
 </script>
 </body>
 </html>

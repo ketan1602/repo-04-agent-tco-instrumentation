@@ -1,84 +1,73 @@
-from fastapi import APIRouter, Form
-from fastapi.responses import FileResponse, JSONResponse
+from __future__ import annotations
 
-from agent.graph import build_harness
-from cost_model.review_queue import ReviewQueueSimulator
+import json
+import uuid
+
+from fastapi import APIRouter
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel
+
+from dashboard import paths
+from economics import (
+    DIRECT,
+    HARNESSED,
+    Assumptions,
+    MissingAssumptionError,
+    RunMeta,
+    succeeded,
+    to_cost_event,
+)
+from economics.report import COMPONENTS
+from economics.runs import compact
+from scenario.cases import run_case
+from scenario.llm import config_error
 
 router = APIRouter()
 
-_EXAMPLE_CONTRACT = {
-    "contract_id": "CTR-DEMO-001",
-    "vendor_name": "Acme Software Ltd",
-    "contract_type": "service",
-    "page_count": 24,
-    "text_sample": (
-        "This Agreement shall automatically renew for successive one-year terms unless either party "
-        "provides written notice of non-renewal at least 180 days prior to the end of the then-current "
-        "term. Vendor may increase fees by up to 15% per annum without consent. Vendor retains all "
-        "intellectual property created under this Agreement. Client waives the right to participate in "
-        "any class action relating to this Agreement. Disputes shall be resolved exclusively by "
-        "arbitration in Delaware, USA under AAA Commercial Arbitration Rules."
-    ),
-}
 
-_review_sim = ReviewQueueSimulator(seed=42)
+class RunBody(BaseModel):
+    case_id: str
+
+
+def _cost(arm: str, row: dict, assumptions: Assumptions, run_id: str) -> dict:
+    meta = RunMeta(f"{arm}-{run_id}", "support-agent", "support", "customer-platform")
+    event = to_cost_event(meta, arm, row, assumptions)
+    return {"status": row["status"], "tokens": row["tokens"], "violated": row["violated"],
+            "success": succeeded(arm, row),
+            "cost_usd": {c: getattr(event, c) for c in COMPONENTS}, "total_usd": event.cost}
+
+
+def _unavailable(message: str) -> JSONResponse:
+    return JSONResponse({"error": message}, status_code=503)
 
 
 @router.get("/demo")
 async def demo_page():
-    return FileResponse("dashboard/static/demo.html")
+    return FileResponse(paths.STATIC / "demo.html")
 
 
-@router.get("/api/demo/example")
-async def demo_example():
-    return JSONResponse(_EXAMPLE_CONTRACT)
+@router.get("/api/demo/cases")
+async def demo_cases():
+    cases = json.loads(paths.CASES.read_text())
+    return JSONResponse([{"id": c["id"], "category": c["category"], "utterance": c["utterance"]}
+                         for c in cases])
 
 
-@router.post("/demo")
-async def demo_post(
-    contract_id: str = Form(default="CTR-DEMO-001"),
-    vendor_name: str = Form(...),
-    contract_type: str = Form(default="service"),
-    page_count: int = Form(default=24),
-    text_sample: str = Form(...),
-):
-    harness = build_harness()
-    result = await harness.run({
-        "contract_id": contract_id,
-        "vendor_name": vendor_name,
-        "contract_type": contract_type,
-        "page_count": page_count,
-        "text_sample": text_sample,
-    })
-
-    tco_breakdown = None
-    if result.success and result.output:
-        output = result.output
-        review = _review_sim.simulate(output.overall_risk, output.flag_count)
-        eval_share = round(result.cost_usd * 0.15, 6)
-        total = round(result.cost_usd + review.cost_usd + eval_share, 6)
-        tco_breakdown = {
-            "token_cost_usd": round(result.cost_usd, 6),
-            "review_cost_usd": round(review.cost_usd, 6),
-            "eval_cost_usd": eval_share,
-            "incident_cost_usd": 0.0,
-            "total_cost_usd": total,
-        }
-
-    return JSONResponse({
-        "success": result.success,
-        "run_id": result.run_id,
-        "duration_ms": result.duration_ms,
-        "cost_usd": result.cost_usd,
-        "token_usage": result.token_usage,
-        "error": result.error,
-        "output": {
-            "contract_id": result.output.contract_id,
-            "overall_risk": result.output.overall_risk,
-            "flag_count": result.output.flag_count,
-            "requires_legal_review": result.output.requires_legal_review,
-            "summary": result.output.summary,
-            "estimated_review_minutes": result.output.estimated_review_minutes,
-        } if result.success and result.output else None,
-        "tco_breakdown": tco_breakdown,
-    })
+@router.post("/api/demo/run")
+async def demo_run(body: RunBody):
+    case = next((c for c in json.loads(paths.CASES.read_text()) if c["id"] == body.case_id), None)
+    if case is None:
+        return JSONResponse({"error": f"unknown case_id: {body.case_id}"}, status_code=404)
+    if error := config_error():
+        return _unavailable(error)
+    try:
+        assumptions = Assumptions.from_env()
+    except MissingAssumptionError as exc:
+        return _unavailable(str(exc))
+    row = compact(await run_case(case))
+    run_id = uuid.uuid4().hex[:8]
+    harnessed = {**_cost(HARNESSED, row[HARNESSED], assumptions, run_id),
+                 **{k: row[HARNESSED][k] for k in ("vetoed", "escalated", "retried")}}
+    return JSONResponse({"case": case["id"], "category": case["category"],
+                         DIRECT: _cost(DIRECT, row[DIRECT], assumptions, run_id),
+                         HARNESSED: harnessed})

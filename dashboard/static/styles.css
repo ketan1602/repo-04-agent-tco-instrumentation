@@ -155,3 +155,18 @@ h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
 .tco-table td:last-child { text-align: right; font-family: monospace; }
+.small { font-size: 12px; }
+.mono { font-family: monospace; }
+.num { text-align: right; font-family: monospace; }
+.actions { margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap; }
+.stat { text-align: center; margin-bottom: 0; }
+.stat-value { font-size: 24px; font-weight: 700; }
+.stat-label { font-size: 12px; }
+.charts { display: flex; flex-wrap: wrap; gap: 16px; }
+.charts svg { max-width: 100%; height: auto; }
+.tag { font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.tag-measured { color: var(--success); }
+.tag-assumed { color: var(--warning); }
+code { background: var(--bg); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+ul { padding-left: 20px; }
+.alert { margin-top: 16px; }

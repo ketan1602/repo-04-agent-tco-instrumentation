@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Demo — Legal Contract Review</title>
+  <title>Demo - ENG-07: The Cost of an Agent Is NOT Tokens</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
 <nav class="nav">
-  <a class="nav-brand" href="/">Agent TCO</a>
+  <a class="nav-brand" href="/">ENG-07 Agent Cost</a>
   <div class="nav-links">
     <a href="/">Overview</a>
     <a href="/demo">Demo</a>
@@ -18,92 +18,52 @@
 </nav>
 <main class="container">
   <div class="page-header">
-    <h1>Legal Contract Review</h1>
-    <p class="text-muted">Submit a contract. See the risk assessment plus the full TCO breakdown for this single run.</p>
+    <h1>Run one case live</h1>
+    <p class="text-muted">Calls the real model once per path, then costs both paths. Tokens are measured; prices are assumed.</p>
   </div>
-
   <div class="card">
-    <h3>Contract Submission</h3>
-    <form id="contract-form" method="post" action="/demo">
-      <div class="grid-2">
-        <div class="form-group">
-          <label for="vendor_name">Vendor Name</label>
-          <input type="text" id="vendor_name" name="vendor_name" value="Acme Software Ltd" required>
-        </div>
-        <div class="form-group">
-          <label for="contract_type">Contract Type</label>
-          <select id="contract_type" name="contract_type">
-            <option value="service" selected>Service Agreement</option>
-            <option value="supply">Supply Agreement</option>
-            <option value="nda">NDA</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-group">
-        <label for="page_count">Page Count</label>
-        <input type="number" id="page_count" name="page_count" value="24" min="1" max="500">
-      </div>
-      <input type="hidden" name="contract_id" value="CTR-DEMO-001">
-      <div class="form-group">
-        <label for="text_sample">Contract Text Sample (first ~2000 chars)</label>
-        <textarea id="text_sample" name="text_sample" rows="8" required>This Agreement shall automatically renew for successive one-year terms unless either party provides written notice of non-renewal at least 180 days prior to the end of the then-current term. Vendor may increase fees by up to 15% per annum without consent. Vendor retains all intellectual property created under this Agreement. Client waives the right to participate in any class action relating to this Agreement. Disputes shall be resolved exclusively by arbitration in Delaware, USA under AAA Commercial Arbitration Rules.</textarea>
-      </div>
-      <button type="submit" class="btn btn-primary" id="submit-btn">Review Contract</button>
-    </form>
+    <div class="form-group"><label for="case">Case</label><select id="case"></select></div>
+    <div id="utterance" class="text-muted small" style="margin-bottom:12px"></div>
+    <button class="btn btn-primary" id="run">Run case</button>
   </div>
-
-  <div id="result-area" style="margin-top:20px"></div>
+  <div id="error"></div>
+  <div id="result" class="grid-2"></div>
 </main>
 <script src="/static/app.js"></script>
 <script>
-  const form = document.getElementById('contract-form');
-  const resultArea = document.getElementById('result-area');
-  const submitBtn = document.getElementById('submit-btn');
-
-  form.addEventListener('submit', async e => {
-    e.preventDefault();
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Reviewing…';
-    resultArea.innerHTML = '<p class="loading">Invoking contract review agent…</p>';
-
-    try {
-      const resp = await fetch('/demo', { method: 'POST', body: new FormData(form) });
-      const json = await resp.json();
-      if (json.success && json.output) {
-        const o = json.output;
-        resultArea.innerHTML = `
-          <div class="card">
-            <h3>Risk Assessment</h3>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-              ${riskBadge(o.overall_risk)}
-              <span class="badge" style="background:var(--border)">${o.flag_count} flag${o.flag_count !== 1 ? 's' : ''}</span>
-              ${o.requires_legal_review ? '<span class="badge badge-high">Legal review required</span>' : '<span class="badge badge-acceptable">No legal review needed</span>'}
-            </div>
-            <p>${o.summary}</p>
-            <p class="text-muted" style="margin-top:8px">Estimated review time: ${o.estimated_review_minutes} minutes</p>
-          </div>
-          <div class="card">
-            <h3>TCO Breakdown — This Run</h3>
-            ${tcoTable(json.tco_breakdown)}
-          </div>
-          <div class="card">
-            <div class="card-title">Harness Metadata</div>
-            <div class="stat-grid">
-              <div><span class="text-muted">Run ID</span><br><code style="font-size:11px">${json.run_id}</code></div>
-              <div><span class="text-muted">Duration</span><br>${json.duration_ms}ms</div>
-              <div><span class="text-muted">Token cost</span><br>$${(json.cost_usd || 0).toFixed(5)}</div>
-            </div>
-          </div>`;
-      } else {
-        resultArea.innerHTML = `<div class="alert alert-error">Error: ${json.error || 'Unknown failure'}</div>`;
-      }
-    } catch (err) {
-      resultArea.innerHTML = `<div class="alert alert-error">Request failed: ${err.message}</div>`;
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Review Contract';
-    }
-  });
+let cases = [];
+function showUtterance() {
+  const c = cases.find(x => x.id === $('case').value);
+  setText('utterance', c ? c.utterance : '');
+}
+function column(name, r, extra) {
+  const tone = r.success ? 'text-success' : 'text-error';
+  return `<div class="card"><h3>${name}</h3>
+    <p class="${tone}">${r.success ? 'success' : 'not a success'}${r.violated ? ' - policy violated' : ''}</p>
+    <table><tbody><tr><td>status</td><td>${esc(r.status)}</td></tr>
+    <tr><td>tokens (measured)</td><td>${esc(r.tokens)}</td></tr>${extra}</tbody></table>
+    <div class="card-title" style="margin-top:12px">Cost (assumed prices)</div>${breakdownTable(r.cost_usd)}
+    <p style="margin-top:8px"><strong>Total ${usd(r.total_usd)}</strong></p></div>`;
+}
+$('run').addEventListener('click', async () => {
+  setHtml('error', ''); setHtml('result', '<div class="loading">Running both paths...</div>');
+  $('run').disabled = true;
+  try {
+    const { ok, body } = await fetchJson('/api/demo/run', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ case_id: $('case').value }) });
+    if (!ok) { setHtml('result', ''); setHtml('error', `<div class="alert alert-error">${esc(body.error || 'Run failed')}</div>`); return; }
+    const h = body.harnessed;
+    setHtml('result', column('Direct (no harness)', body.direct, '') + column('Harnessed', h,
+      `<tr><td>vetoed</td><td>${h.vetoed}</td></tr><tr><td>escalated</td><td>${h.escalated}</td></tr><tr><td>retried</td><td>${h.retried}</td></tr>`));
+  } catch (e) { setHtml('result', ''); setHtml('error', '<div class="alert alert-error">Request failed.</div>'); }
+  finally { $('run').disabled = false; }
+});
+fetch('/api/demo/cases').then(r => r.json()).then(list => {
+  cases = list;
+  setHtml('case', list.map(c => `<option value="${esc(c.id)}">${esc(c.id)}</option>`).join(''));
+  showUtterance();
+});
+$('case').addEventListener('change', showUtterance);
 </script>
 </body>
 </html>

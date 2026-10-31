@@ -25,6 +25,3 @@ jobs:
 
       - name: Test
         run: pytest tests/ -v
-        env:
-          ENVIRONMENT: test
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
