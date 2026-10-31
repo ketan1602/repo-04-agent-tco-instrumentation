@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import random
 import sys
 from pathlib import Path
@@ -24,6 +25,7 @@ load_dotenv()
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from agent.graph import build_harness
+from agent.llm import get_token_count, reset_token_count
 from cost_model.incident_cost import IncidentCostTracker
 from cost_model.review_queue import ReviewQueueSimulator
 from cost_model.tco_aggregator import RunCost, TCOAggregator
@@ -33,6 +35,8 @@ from economics.model import AgentCostEvent, summarize
 _RUNS = 100
 _INCIDENT_RATE = 0.08
 _EVAL_SHARE_RATE = 0.15
+# Cost per 1 000 tokens — override via LLM_COST_PER_1K_TOKENS env var.
+_TOKEN_COST_PER_1K = float(os.environ.get("LLM_COST_PER_1K_TOKENS", "0.005"))
 
 _CONTRACT_TYPES = ["service", "supply", "nda"]
 _VENDOR_NAMES = [
@@ -76,9 +80,10 @@ async def _run_simulation() -> None:
 
     for i in range(1, _RUNS + 1):
         contract = _make_contract(i)
+        reset_token_count()
         result = await harness.run(contract)
 
-        token_cost = result.cost_usd
+        token_cost = (get_token_count() / 1000) * _TOKEN_COST_PER_1K
         overall_risk = "medium"
         flag_count = 2
         if result.success and result.output:
@@ -141,7 +146,9 @@ async def _run_simulation() -> None:
     print(f"  TCO breakdown  → measurements/tco_results.json")
     print(f"  Outcome econ   → measurements/economics_results.json")
     print(f"  Total cost: ${summary['total_cost_usd']:.4f}")
-    print(f"  Token cost: {summary['token_cost_pct']:.1f}% of TCO")
+    token_pct = summary['token_cost_pct']
+    token_pct_str = f"{token_pct:.3f}%" if token_pct < 1 else f"{token_pct:.1f}%"
+    print(f"  Token cost: {token_pct_str} of TCO (${summary['token_cost_usd']:.4f})")
     print(f"  Review cost: {summary['review_cost_pct']:.1f}% of TCO")
     print(f"  Cost/success: ${econ['cost_per_success_usd']:.4f}")
     print(f"  Incidents: {incident_tracker.incident_count()} ({incident_tracker.total_cost_usd():.2f} USD)")

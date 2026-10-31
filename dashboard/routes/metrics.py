@@ -43,8 +43,9 @@ async def metrics_data():
     run_totals = data.get("run_totals", [])
     cost_trend = trend_line(run_totals, "Per-Run Cost Trend") if run_totals else ""
 
+    token_display = f"{token_pct:.1f}%" if token_pct >= 1 else (f"{token_pct:.3f}%" if token_pct > 0 else "0%")
     token_stat = stat_card(
-        value=f"{token_pct:.0f}%",
+        value=token_display,
         label="Tokens as % of TCO",
         sublabel="the number that surprises everyone",
         color="#6366f1",

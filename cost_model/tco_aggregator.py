@@ -47,7 +47,7 @@ class TCOAggregator:
         retry = sum(r.retry_cost_usd for r in self._runs)
 
         def pct(v: float) -> float:
-            return round(v / total * 100, 1) if total > 0 else 0.0
+            return round(v / total * 100, 3) if total > 0 else 0.0
 
         return {
             "total_runs": len(self._runs),
