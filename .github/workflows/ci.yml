@@ -27,5 +27,4 @@ jobs:
         run: pytest tests/ -v
         env:
           ENVIRONMENT: test
-          AIREFINERY_API_KEY: ${{ secrets.AIREFINERY_API_KEY }}
-          AIR_MODEL: openai/gpt-oss-120b
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}

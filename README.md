@@ -61,17 +61,16 @@ class RiskSummary(BaseModel):
 - Edges: `analyse_contract` → `assess_risk` → `END`
 - Compiled graph is wrapped by `AgentHarness` for operational concerns
 
-### AI Refinery SDK (LLM)
-- All LLM calls go through `air.AsyncAIRefinery` via `agent/llm.py`
-- Base URL: `https://sdk.airefinery.accenture.com/distiller`
-- Model: `openai/gpt-oss-120b` (configurable via `AIR_MODEL` env var)
-- `truststore.inject_into_ssl()` handles corporate certificate trust
-- **No LangChain-Anthropic dependency** — LangGraph does not require LangChain for LLM calls
+### LLM (any OpenAI-compatible API)
+- All LLM calls go through `openai.AsyncOpenAI` via `agent/llm.py`
+- Configured via `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL` env vars
+- Works with any OpenAI-compatible endpoint (OpenAI, Azure OpenAI, local vLLM, etc.)
+- **No LangChain dependency** — LangGraph does not require LangChain for LLM calls
 
 ### agent-harness-core (operational wrapper)
 - Wraps the compiled graph: lifecycle state machine, retry, audit, I/O validation
 - Installed from local path (or GitHub tag for CI)
-- Token tracking via callback is inactive when using air SDK directly — TCO is tracked by `cost_model/` instead
+- Token tracking via callback is inactive when using the OpenAI SDK directly — TCO is tracked by `cost_model/` instead
 
 ### Design Patterns Applied
 - **Wrapper/Facade** — `AgentHarness` adds operational concerns without modifying the graph
@@ -150,7 +149,7 @@ python scripts/run_tco_simulation.py
 - Simulates human review queue with `ReviewQueueSimulator`
 - Injects incidents at 8% rate with `IncidentCostTracker`
 - Writes `measurements/tco_results.json`
-- Requires `AIREFINERY_API_KEY` to be set
+- Requires `LLM_API_KEY` to be set
 
 ---
 
@@ -160,7 +159,7 @@ python scripts/run_tco_simulation.py
 repo-04-agent-tco-instrumentation/
 ├── agent/
 │   ├── graph.py         # LangGraph graph + AgentHarness factory
-│   ├── llm.py           # AI Refinery async completion helper
+│   ├── llm.py           # OpenAI-compatible async completion helper
 │   ├── nodes.py         # analyse_contract_node, assess_risk_node
 │   ├── prompts.py       # System prompts + user message templates
 │   └── schemas.py       # ContractInput, RiskSummary, AgentState
@@ -178,13 +177,18 @@ repo-04-agent-tco-instrumentation/
 │   └── fixtures/
 │       └── contracts.json   # 20 labelled contract scenarios
 ├── measurements/
-│   └── tco_results.json # Written by run_tco_simulation.py
+│   ├── tco_results.json         # TCO category breakdown + trend
+│   └── economics_results.json   # AgentCostEvent outcome economics
 ├── scripts/
 │   └── run_tco_simulation.py
+├── economics/
+│   ├── model.py         # AgentCostEvent, OutcomeEconomics, summarize()
+│   └── adapter.py       # RunCost → AgentCostEvent bridge (PlatformCosts, RunMeta)
 ├── tests/
-│   ├── test_agent.py    # Agent schema + node tests (LLM mocked)
-│   ├── test_cost_model.py # Cost model unit tests (no external calls)
-│   └── test_dashboard.py  # Dashboard route tests (harness mocked)
+│   ├── test_agent.py              # Agent schema + node tests (LLM mocked)
+│   ├── test_cost_model.py         # Cost model unit tests (no external calls)
+│   ├── test_dashboard.py          # Dashboard route tests (harness mocked)
+│   └── test_economics_adapter.py  # Economics adapter + model tests
 └── config/
     └── harness.yaml
 ```
@@ -200,8 +204,9 @@ pip install -e ".[dev]"
 Copy `.env.example` to `.env` and set:
 
 ```
-AIREFINERY_API_KEY=<your-key>
-AIR_MODEL=openai/gpt-oss-120b
+LLM_API_KEY=<your-key>
+LLM_BASE_URL=<optional-base-url>
+LLM_MODEL=gpt-4o-mini
 ```
 
 ## Running

@@ -56,7 +56,7 @@ def to_cost_event(
 ) -> AgentCostEvent:
     """Convert a harness RunCost + run metadata into a fully-attributed AgentCostEvent.
 
-    token_cost_usd      → model     (actual token cost from AI Refinery via harness)
+    token_cost_usd      → model     (actual token cost from LLM API via harness)
     review_cost_usd     → human_review (time-based, driven by agent's RiskSummary output)
     eval_cost_usd       → evaluation
     incident + retry    → remediation (failure recovery cost)

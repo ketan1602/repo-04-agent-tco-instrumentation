@@ -4,7 +4,7 @@ Run 100 contract reviews and collect empirical TCO data.
 Usage:
     python scripts/run_tco_simulation.py
 
-Requires AIREFINERY_API_KEY to be set in environment or .env file.
+Requires LLM_API_KEY (and optionally LLM_BASE_URL, LLM_MODEL) to be set in environment or .env file.
 Writes:
   measurements/tco_results.json     — TCO category breakdown + trend
   measurements/economics_results.json — AgentCostEvent-based outcome economics
@@ -121,7 +121,7 @@ async def _run_simulation() -> None:
 
     outcome = summarize(cost_events)
     econ = {
-        "disclaimer": "Empirical — token costs from real AI Refinery runs via harness",
+        "disclaimer": "Empirical — token costs from real LLM runs via harness",
         "runs": outcome.runs,
         "successful_outcomes": outcome.successes,
         "total_cost_usd": round(outcome.total_cost, 4),

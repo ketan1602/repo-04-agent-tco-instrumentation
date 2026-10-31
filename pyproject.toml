@@ -6,8 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "agent-harness-core @ file:../agent-harness-core",
     "langgraph>=0.2.0",
-    "airefinery-sdk>=1.33.0",
-    "truststore>=0.9.1",
+    "openai>=1.0.0",
     "pydantic>=2.0.0",
     "pyyaml>=6.0",
     "python-dotenv>=1.0.0",
