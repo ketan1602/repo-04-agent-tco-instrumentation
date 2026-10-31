@@ -3,9 +3,12 @@ from __future__ import annotations
 import os
 
 import openai
+import truststore
+
+truststore.inject_into_ssl()
 
 _BASE_URL = os.environ.get("LLM_BASE_URL", "").strip() or None
-_DEFAULT_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+_DEFAULT_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini").strip()
 _TEMPERATURE = 0.1
 
 
