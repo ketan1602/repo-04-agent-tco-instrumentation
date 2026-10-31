@@ -1,5 +1,8 @@
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+
+load_dotenv()
 
 from dashboard.routes import demo, eval_routes, metrics, overview
 
